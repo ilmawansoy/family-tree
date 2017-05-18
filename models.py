@@ -1,16 +1,21 @@
 import sys
 
+
 class Person:
 	
 	def __init__(self, repo, *args):
-		self._repo = Repo()
+		self.repo = Repo()
 		self._id = args[0];
 		self._name = args[1];
 		self._gender = args[2];
 		self._birthdate = args[3];
 		self._fatherID = args[4];
 		self._motherID = args[5];
-	
+		
+		self._fspouse = set()
+		self._children = set()
+		self._spouse = None
+
 	def getID(self):
 		return self._id
 
@@ -26,11 +31,28 @@ class Person:
 	def getBirthDate(self):
 		return self._birthdate
 
+	def addChildren(self, person):
+		self._children.add(person)
+
+	def addSpouse(self, person):
+		self._spouse = person
+
+	def removeSpouse(self, person):
+		self._fspouse.add(person)
+		if self._spouse == person:
+			self._spouse = None
+
 	def getFather(self):
-		return self._repo.arrayofPerson[self._fatherID]
+		try:
+			return self.repo.arrayofPerson[self._fatherID]
+		except:
+			return None
 
 	def getMother(self):
-		return self._repo.arrayofPerson[self._motherID]
+		try:
+			return self.repo.arrayofPerson[self._motherID]
+		except:
+			return None
 
 	def getFatherID(self):
 		return self._fatherID
@@ -39,94 +61,47 @@ class Person:
 		return self._motherID
 
 	def isMarried(self):
-		boolean = False
-		for key,value in self._repo.arrayofMarriage.items():
-			if (value.getHusband() == self or value.getWife() == self) and (not value.isEnded()):
-				boolean =  True
-			else:
-				boolean = False
-		return boolean
+		return self._spouse != None
 
 	def isDivorced(self):
-		boolean = False
-		for key,value in self._repo.arrayofMarriage.items():
-			if (value.getHusband() == self or value.getWife() == self) and value.isEnded():
-				boolean = True
-			else:
-				boolean = False
-		return boolean
-
+		self._fspouse.add(self._spouse)
+		return self._spouse == None
+	
 	def isParent(self,child):
-		if self.isMale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if child.getFather() == self:
-					return True
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if child.getMother() == self:
-					return True		
+		if child in self._children:
+			return True
 		return False
 
 	def isStepParent(self,child):
-		if self.isMale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if child.getFather() != elem.getHusband() and child.getMother() == elem.getWife():
-					return True
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if child.getMother() != elem.getWife() and child.getFather() == elem.getHusband():
-					return True
+		childparent = child.getParents()
+		if self._spouse in childparent and self not in childparent:
+			return True
 		return False
 
 	def getSpouse(self):
-		array = []
-		if self.isMale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if elem.getHusband() == self and (not elem.isEnded()):
-					array.append(elem.getWife())
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if elem.getWife() == self and (not elem.isEnded()):
-					array.append(elem.getHusband())
-		return array
+		return self._spouse
 
 	def getFormerSpouse(self):
-		array = []
-		if self.isMale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if elem.getHusband() == self.getID() and (elem.isEnded()):
-					array.append(elem.getWife())
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofMarriage.items():
-				if elem.getWife() == self.getID() and (elem.isEnded()):
-					array.append(elem.getHusband())
-		return array
+		return list(self._fspouse)
 
 	def getParents(self):
-		array = [self.getFather(),self.getMother()]	
+		array = [self.getFather(), self.getMother()]	
 		return array
 
 	def getChildren(self):
-		array = []
-		if self.isMale():
-			for key,elem in self._repo.arrayofPerson.items():
-				if elem.getFatherID() == self.getID():
-					array.append(elem)
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofPerson.items():
-				if elem.getMotherID() == self.getID():
-					array.append(elem)
-		return array
+		return list(self._children)
 
 	def getSiblings(self):
-		parentarray = self.getParents()
-		father = parentarray[0].getID()
-		mother = parentarray[1].getID()
 		array = []
-		for key,elem in self._repo.arrayofPerson.items():
-			if elem.getID()!=self.getID() and (elem.getFatherID() == father or elem.getMotherID() == mother):
-				array.append(elem)
-		return array
+		parentarray = self.getParents()
+		
+		fatherchild = parentarray[0].getChildren()
+		array.extend(fatherchild)
+		
+		motherchild = parentarray[1].getChildren()
+		array.extend(motherchild)
+
+		return list(set(array))
 
 	def getSisters(self):
 		siblingsarray = self.getSiblings()
@@ -145,21 +120,14 @@ class Person:
 		return array
 
 	def getStepChildren(self):
-		partner = self.getSpouse()
-		partnerid = []
+		partnerchild = self._spouse.getChildren()
+		childs = self.getChildren()
 		array = []
-		for partners in partner:
-			partnerid.append(partners.getID())
-		
-		if self.isMale():
-			for key,elem in self._repo.arrayofPerson.items():
-				if elem.getMotherID() in partnerid and elem.getFatherID() != self.getID():
-					array.append(elem)
-		elif self.isFemale():
-			for key,elem in self._repo.arrayofPerson.items():
-				if elem.getFatherID() in partnerid and elem.getMotherID() != self.getID():
-					array.append(elem)
-		return array
+
+		for pchild in partnerchild:
+			if pchild not in childs:
+				array.append(pchild)
+		return array	
 
 	def getStepSisters(self):
 		father = self.getFather()
@@ -191,7 +159,7 @@ class Person:
 
 	def getStepMother(self):
 		array = []
-		for key,elem in self._repo.arrayofMarriage.items():
+		for key,elem in self.repo.arrayofMarriage.items():
 			mother = elem.getWife()
 			father = elem.getHusband()
 			if self.getMother() != mother and self.getFather() == father:
@@ -200,7 +168,7 @@ class Person:
 
 	def getStepFather(self):
 		array = []
-		for key,elem in self._repo.arrayofMarriage.items():
+		for key,elem in self.repo.arrayofMarriage.items():
 			mother = elem.getWife()
 			father = elem.getHusband()
 			if self.getMother() == mother and self.getFather() != father:
@@ -229,32 +197,106 @@ class Person:
 
 	def getGrandChildren(self):
 		arr = []
-		for child in  self.getChildren():
+		childs = self.getChildren()
+		for child in childs:
 			arr.extend(child.getChildren())
 		return arr
 
 	def getCousins(self):
 		arr = []
-		for uncle in self.getUncles():
+		uncles = self.getUncles()
+		aunties = self.getAunties()
+		for uncle in uncles:
 			 arr.extend(uncle.getChildren())
-		for aunt in self.getAunties():
+		for aunt in aunties:
 			 arr.extend(aunt.getChildren())
 		return list(set(arr))
 
 	def getNephews(self):
 		arr = []
-		for sibling in self.getSiblings():
+		siblings = self.getSiblings()
+		for sibling in siblings:
 			arr.extend(sibling.getChildren())
 		return list(set(arr))
 
-	def find(self, args):pass
+	def find(self, args):
+		args = args.lower()
+		cmd = args.split(" of ")
+		person = (self)
+		for command in cmd:
+			temp = set()
+			if(cmd == 'spouse'):
+				for p in person:
+					temp |= (p.getSpouse())
+			elif (cmd == 'former spouse'):
+				for p in person:
+					temp |= (p.getFormerSpouse())
+			elif (cmd == 'parents'):
+				for p in person:
+					temp |= (p.getParents())
+			elif (cmd == 'siblings'):
+				for p in person:
+					temp |= (p.getSiblings())
+			elif (cmd == 'children'):
+				for p in person:
+					temp |= (p.getChildren())
+			elif (cmd == 'sisters'):
+				for p in person:
+					temp |= (p.getSisters())
+			elif (cmd == 'brothers'):
+				for p in person:
+					temp |= (p.getBrothers())
+			elif (cmd == 'step children'):
+				for p in person:
+					temp |= (p.getStepChildren())
+			elif (cmd == 'step sisters'):
+				for p in person:
+					temp |= (p.getStepSisters())
+			elif (cmd == 'step brothers'):
+				for p in person:
+					temp |= (p.getStepBrothers())
+			elif (cmd == 'step mother'):
+				for p in person:
+					temp |= (p.getStepMother())
+			elif (cmd == 'step father'):
+				for p in person:
+					temp |= (p.getStepFather())
+			elif (cmd == 'uncles'):
+				for p in person:
+					temp |= (p.getUncles())
+			elif (cmd == 'aunties'):
+				for p in person:
+					temp |= (p.getAunties())
+			elif (cmd == 'grand fathers'):
+				for p in person:
+					temp |= (p.getGrandFathers())
+			elif (cmd == 'grand mothers'):
+				for p in person:
+					temp |= (p.getGrandMothers())
+			elif (cmd == 'grand children'):
+				for p in person:
+					temp |= (p.getGrandChildren())
+			elif (cmd == 'grand parents'):
+				for p in person:
+					temp |= (p.getGrandParents())
+			elif (cmd == 'cousins'):
+				for p in person:
+					temp |= (p.getCousins())
+			elif (cmd == 'nephews'):
+				for p in person:
+					temp |= (p.getNephews())
+			person = temp
+		return person		
 
-	def relationTo(self, person):pass
+
+	def relationTo(self, person):
+		pass
+
 
 class Marriage:
 
 	def __init__(self,repo,*args):
-		self._repo = repo
+		self.repo = repo
 		self._id = args[0];
 		self._husbandID = args[1];
 		self._wifeID = args[2];
@@ -265,10 +307,16 @@ class Marriage:
 		return self._id
 
 	def getHusband(self):
-		return self._repo.arrayofPerson[self._husbandID]
+		try:
+			return self.repo.arrayofPerson[self._husbandID]
+		except:
+			return None
 
 	def getWife(self):
-		return self._repo.arrayofPerson[self._wifeID]
+		try:
+			return self.repo.arrayofPerson[self._wifeID]
+		except:
+			return None
 
 	def getHusbandID(self):
 		return self._husbandID
@@ -299,16 +347,43 @@ class Repo(Borg):
 	def __init__(self):
 		Borg.__init__(self)
 
-	def addPerson(self,args):
+	def addPerson(self,person):
 		try:
-			self.arrayofPerson[args.getID()] = args
+			self.arrayofPerson[person.getID()] = person
+			father = person.getFatherID()
+			mother = person.getMotherID()
+		
+			#dummy
+			if father not in self.arrayofPerson:
+				self.arrayofPerson[father] = Person(person.repo,father,'male',None,None,None,None)
+			#dummy
+			if mother not in self.arrayofPerson:
+				self.arrayofPerson[mother] = Person(person.repo,mother,'female',None,None,None,None)
+			
+			person.getMother().addChildren(person)
+			person.getFather().addChildren(person)
+		
 		except Exception as e:
 			print ("init error")
 			sys.exit(1)
 			
-	def addMarriage(self,args):
-		self.arrayofMarriage[args.getID()] = args
+	def addMarriage(self, marriage):
+		try:
+			self.arrayofMarriage[marriage.getID()] = marriage
+			wife = marriage.getWife()
+			husband = marriage.getHusband()
 		
+			if not marriage.isEnded():
+				wife.addSpouse(husband)
+				husband.addSpouse(wife)
+			elif marriage.isEnded():
+				wife.removeSpouse(husband)
+				husband.removeSpouse(wife)
+
+		except Exception as e:
+			print ("init error")
+			sys.exit(1)
+
 	def getPersonById(self,personid):
 		return self.arrayofPerson[personid]
 
@@ -316,22 +391,27 @@ class Repo(Borg):
 		return self.arrayofPerson[marrid]
 
 	def getRelationRoot(self,person1, person2):
-		i = 1
-		return self.getRelationRootHelper(person1,person2,i)
-
-	def getRelationRootHelper(self,person1, person2, distance):
-		try:
-			parent1 = person1.getParents()
-			parent2 = person2.getParents()
-			for parent in parent1:
-				if parent in parent2:
-					arr = [parent,distance]
-					return arr
-		except Exception as e:
-			return
-		else:
-			distance = distance + 1
-			getRelationRootHelper(self,parent1[0],parent2[0],distance)
-			getRelationRootHelper(self,parent1[0],parent2[1],distance)
-			getRelationRootHelper(self,parent1[1],parent2[0],distance)
-			getRelationRootHelper(self,parent1[1],parent2[1],distance)
+		set1 = {person1}
+		set2 = {person2}
+		distance = 0
+		array1 = person1.getParents()
+		array2 = person2.getParents()
+		while len(set1 & set2) == 0: 
+			temp1 = set()
+			temp2 = set()
+			distance += 1
+			for parent in array1:
+				set1 |= {parent}
+				if parent.getFather() != None:
+					temp1.add(parent.getFather())
+				if parent.getMother() != None:
+					temp1.add(parent.getMother())
+			for parent in array2:
+				set2 |= {parent}
+				if parent.getFather() != None:
+					temp2.add(parent.getFather())
+				if parent.getMother() != None:
+					temp2.add(parent.getMother())
+			array1 = list(temp1)
+			array2 = list(temp2)
+		return list(set1 & set2),distance
